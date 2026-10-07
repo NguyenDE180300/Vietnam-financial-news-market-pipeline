@@ -9,96 +9,95 @@ local; dataset và notebook có output không được commit lên GitHub.
 
 | Dataset | Records | Coverage |
 |---|---:|---|
-| Silver News | 260 | 5 nguồn |
-| Silver Market | 660 | 30 ticker × 22 phiên |
-| Gold Event Window | 513 | 57 cặp news–ticker × 9 offset |
+| Silver News | 5.096 | 237 nhãn nguồn, 01/01/2020–06/10/2026 |
+| Silver Market | 52.142 | 30 ticker, 1.788 ngày giao dịch, 02/12/2019–07/10/2026 |
+| Gold Event Window | 29.952 | 3.328 cặp news–ticker × 9 offset |
 
-Kết luận readiness: dữ liệu hiện đủ để audit pipeline và EDA mô tả, chưa đủ
-để huấn luyện mô hình dự đoán đáng tin cậy.
+So với batch EDA ban đầu, News tăng từ 260 lên 5.096, Market từ 660 lên
+52.142 và Gold từ 513 lên 29.952 dòng. Dữ liệu hiện đủ để audit pipeline,
+EDA mô tả và xây baseline nghiên cứu; chưa đủ sạch để xem kết quả là bằng chứng
+nhân quả hoặc đưa mô hình vào production.
 
 ## 2. News quality
 
-- 260/260 `event_id` duy nhất; không trùng URL hoặc `content_hash`.
+- 5.096/5.096 `event_id` duy nhất; không trùng URL, có 1 cặp trùng
+  `content_hash` cần review.
 - Không có dòng invalid hoặc thiếu title.
-- Chỉ 2 bài có full text, image và author (0,8%). Nguyên nhân chính là batch
-  ban đầu chạy `article-limit=2`; cần thu lại với giới hạn cao hơn trước NLP.
-- 47/260 bài có ít nhất một ticker VN30 (18,1%).
-- Coverage ticker cao nhất ở `cafef_finance` (30%), sau đó `cafef_stock` (20%).
-- Median publish-to-collect latency là 1.416 phút (~23,6 giờ), P95 là 5.816
-  phút (~4 ngày). Batch hiện chứa backlog RSS nên chưa đại diện latency realtime.
+- 12 bài có full text, image và author (0,24%). Phần lịch sử chủ yếu là
+  metadata/snippet, vì vậy chưa nên train NLP trên nội dung đầy đủ.
+- 3.001/5.096 bài có ít nhất một ticker VN30 (58,9%).
+- Có 237 nhãn nguồn do dữ liệu lịch sử mang tên publisher không chuẩn hóa hoàn
+  toàn; nên thêm bảng ánh xạ publisher canonical trước phân tích theo nguồn.
+- Chỉ 773 dòng có thể tính publish-to-collect latency. Median là 1.559 phút
+  (~26 giờ), P95 là 5.356 phút (~3,7 ngày); đây là backlog lịch sử, không đại
+  diện latency realtime.
 
 ## 3. Ticker extraction
 
 | Nhóm | Số bài |
 |---|---:|
-| Không tìm thấy ticker | 213 |
-| Rule và NER đồng ý | 38 |
-| Rule-only | 8 |
-| Partial disagreement | 1 |
-| NER-only | 0 |
+| Không tìm thấy ticker | 2.095 |
+| Rule và NER đồng ý | 1.722 |
+| Rule-only | 1.226 |
+| Partial disagreement | 43 |
+| NER-only | 10 |
 
-CRF hiện không bổ sung ticker mới ngoài rule-based. Có một bài liệt kê nhiều mã
-mà NER thiếu `BID` so với rule. Trước khi nâng model cần manual review các bài
-không có ticker và tập disagreement, sau đó tính entity/ticker precision,
-recall và F1 trên nhãn người thật.
+NER đã bổ sung ticker cho 10 bài mà rule-based không tìm thấy. Tuy nhiên, cần
+manual review toàn bộ 53 dòng NER-only/disagreement và lấy mẫu rule-only trước
+khi dùng làm nhãn huấn luyện. Chỉ có nhãn người thật mới cho phép báo cáo
+precision, recall và F1 đáng tin cậy.
 
 ## 4. Market quality
 
-- 660 rows, 30 ticker và 22 phiên từ 07/09/2026 đến 06/10/2026.
-- Mỗi ticker có đủ 22 phiên; không trùng khóa, không dòng invalid và không có
-  phiên cuối tuần.
-- 30 giá trị `daily_return` null là phiên đầu tiên của mỗi ticker, đúng thiết kế
-  vì không có `previous_close` trong cửa sổ.
-- Không có daily return tuyệt đối vượt 10% trong batch.
-- SSB có volatility mẫu cao nhất (4,26%), nhưng 22 phiên là quá ngắn để suy
-  rộng về rủi ro dài hạn.
+- 52.142 dòng hợp lệ, 30 ticker và 1.788 ngày giao dịch từ 02/12/2019 đến
+  07/10/2026.
+- Không trùng khóa, không dòng invalid, không phiên cuối tuần và không return
+  tuyệt đối vượt 50%.
+- 30 giá trị `daily_return` null là quan sát đầu tiên của mỗi ticker.
+- 28 dòng Yahoo có OHLC bất hợp lý được đưa vào quarantine, không đi vào Silver.
+- Số phiên khác nhau theo mã do ngày niêm yết/lịch dữ liệu Yahoo; ví dụ BCM bắt
+  đầu 15/03/2021 và GVR bắt đầu 17/03/2020.
 
 ## 5. Timezone và point-in-time audit
 
-EDA phát hiện job Gold trước đây đặt Spark session ở `Asia/Ho_Chi_Minh` rồi gọi
-`from_utc_timestamp`, làm một số timestamp bị cộng múi giờ hai lần. Job đã được
-sửa để giữ Spark session UTC và chuyển sang giờ Việt Nam đúng một lần.
+Gold giữ Spark session ở UTC rồi chuyển `published_timestamp` sang
+`Asia/Ho_Chi_Minh` đúng một lần. Sau khi mở rộng market về trước thời điểm news:
 
-Sau khi rebuild:
-
-- 57 cặp news–ticker.
-- 35 cặp có news đăng từ 15:00 trở đi.
+- 3.328 cặp news–ticker; 1.159 cặp đăng từ 15:00 trở đi.
 - 0 trường hợp T0 đứng trước event date.
-- 0 trường hợp anchor T-1 không đứng trước T0.
-- Timestamp Việt Nam và `event_date_vn` đã nhất quán.
+- 0 trường hợp anchor T−1 không đứng trước T0.
+- Tin từ năm 2020 không còn bị ghép nhầm với phiên đầu năm 2023.
 
 ## 6. Event-window coverage
 
 | Offset | Available | Tỷ lệ |
 |---:|---:|---:|
-| T-5 đến T0 | 57/57 | 100% |
-| T+1 | 30/57 | 52,6% |
-| T+2 | 2/57 | 3,5% |
-| T+3 | 0/57 | 0% |
-| T+5 | 0/57 | 0% |
+| T−5 | 3.304/3.328 | 99,3% |
+| T−3 đến T−1 | 3.305/3.328 | 99,3% |
+| T0 | 3.328/3.328 | 100% |
+| T+1 | 3.304/3.328 | 99,3% |
+| T+2 | 3.277/3.328 | 98,5% |
+| T+3 | 3.249/3.328 | 97,6% |
+| T+5 | 3.247/3.328 | 97,6% |
 
-Mean abnormal return tại T0 là khoảng +0,059% với khoảng tin cậy xấp xỉ
-[-0,177%; +0,294%]. T+1 có mean -0,095%, nhưng chỉ có 30 quan sát và khoảng
-tin cậy rộng. Không có bằng chứng thống kê đủ mạnh để kết luận tác động tăng hay
-giảm từ batch này.
+EDA thô cho mean abnormal return khoảng +0,09% tại T0, +0,17% tại T+1 và
++0,31% tại T+5. Không nên diễn giải các số này là tác động của tin: nhiều bài
+cùng sự kiện/ticker có thể tương quan, phân loại sentiment/event chưa có, và
+VN30 equal-weight benchmark chưa điều chỉnh beta hay yếu tố ngành.
 
-So sánh theo nguồn hoặc thời điểm đăng hiện có nhóm chỉ 1–8 event, vì vậy các
-mean khác nhau không nên diễn giải thành hiệu ứng nguồn báo.
-
-## 7. Storage
+## 7. Storage local
 
 | Layer | Parquet files | Dung lượng local |
 |---|---:|---:|
-| Silver News | 5 | 225,9 KiB |
-| Silver Market | 22 | 223,9 KiB |
-| Gold | 5 | 66,1 KiB |
+| Silver News | 75 | 4.106,5 KiB |
+| Silver Market | 83 | 6.654,8 KiB |
+| Gold | 74 | 2.600,6 KiB |
 
 ## 8. Việc nên làm tiếp
 
-1. Chạy collector realtime liên tục và tăng full-article coverage.
-2. Backfill market ít nhất 1–3 năm.
-3. Mở rộng lên tối thiểu 3.000–5.000 bài và 500–1.000 event có đủ T+5.
-4. Manual review ticker extraction và tạo test set độc lập.
-5. Chạy lại EDA với coverage T+5 đầy đủ.
-6. Chỉ sau đó mới train baseline TF-IDF/Logistic Regression hoặc model market
-   feature; dùng time-based split, không random split.
+1. Crawl full article hợp lệ và tăng mạnh coverage nội dung.
+2. Chuẩn hóa publisher và review 1 cặp duplicate content.
+3. Label thủ công ticker trên test set độc lập; review NER disagreement.
+4. Gom các bài cùng sự kiện để tránh một sự kiện bị đếm nhiều lần.
+5. Thêm event type/sentiment rồi xây baseline theo time-based split.
+6. So sánh market-adjusted, sector-adjusted và beta-adjusted abnormal return.

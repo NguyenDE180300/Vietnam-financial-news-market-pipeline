@@ -32,6 +32,7 @@ def main() -> None:
     parser.add_argument("--output", required=True)
     parser.add_argument("--mode", choices=("overwrite", "append"), default="overwrite")
     parser.add_argument("--output-partitions", type=int, default=4)
+    parser.add_argument("--quarantine-output", help="Optional Parquet path for invalid market rows")
     args = parser.parse_args()
     if args.output_partitions < 1:
         parser.error("--output-partitions must be at least 1")
@@ -61,6 +62,8 @@ def main() -> None:
             .filter(F.col("_rank") == 1)
             .drop("_rank")
         )
+        price_scale = F.greatest(F.abs("open"), F.abs("high"), F.abs("low"), F.abs("close"))
+        price_tolerance = price_scale * F.lit(1e-6) + F.lit(1e-6)
         quality_errors = F.array_compact(F.array(
             F.when(F.col("event_id").isNull(), F.lit("missing_event_id")),
             F.when(~F.col("ticker").rlike("^[A-Z0-9]{2,10}$"), F.lit("invalid_ticker")),
@@ -70,8 +73,14 @@ def main() -> None:
             F.when(F.col("high").isNull() | (F.col("high") <= 0), F.lit("invalid_high")),
             F.when(F.col("low").isNull() | (F.col("low") <= 0), F.lit("invalid_low")),
             F.when(F.col("close").isNull() | (F.col("close") <= 0), F.lit("invalid_close")),
-            F.when(F.col("high") < F.greatest("open", "close", "low"), F.lit("high_below_ohlc")),
-            F.when(F.col("low") > F.least("open", "close", "high"), F.lit("low_above_ohlc")),
+            F.when(
+                F.col("high") + price_tolerance < F.greatest("open", "close", "low"),
+                F.lit("high_below_ohlc"),
+            ),
+            F.when(
+                F.col("low") - price_tolerance > F.least("open", "close", "high"),
+                F.lit("low_above_ohlc"),
+            ),
             F.when(F.col("volume").isNull() | (F.col("volume") < 0), F.lit("invalid_volume")),
             F.when(F.col("collected_timestamp").isNull(), F.lit("invalid_collected_at")),
             F.when(~F.col("schema_version").eqNullSafe(F.lit(1)), F.lit("unsupported_schema")),
@@ -82,17 +91,26 @@ def main() -> None:
             .withColumn("previous_close", F.lag("close").over(ordering))
             .withColumn("daily_return", F.col("close") / F.col("previous_close") - F.lit(1.0))
             .withColumn("log_return", F.log(F.col("close") / F.col("previous_close")))
+            .withColumn("session_year_month", F.date_format("session_date", "yyyy-MM"))
             .withColumn("data_quality_errors", quality_errors)
             .withColumn("is_valid", F.size("data_quality_errors") == 0)
             .cache()
         )
         total = silver.count()
         valid = silver.filter("is_valid").count()
+        quarantined = total - valid
         tickers = silver.select("ticker").distinct().count()
-        silver.repartition(args.output_partitions, "session_date").write.mode(args.mode).partitionBy(
-            "session_date"
+        if quarantined and args.quarantine_output:
+            silver.filter(~F.col("is_valid")).write.mode(args.mode).parquet(args.quarantine_output)
+        silver.filter("is_valid").repartition(
+            args.output_partitions, "session_year_month"
+        ).write.mode(args.mode).partitionBy(
+            "session_year_month"
         ).parquet(args.output)
-        print(f"Market Silver rows={total} valid={valid} tickers={tickers} output={args.output}")
+        print(
+            f"Market Silver input={total} valid={valid} quarantined={quarantined} "
+            f"tickers={tickers} output={args.output}"
+        )
         silver.unpersist()
     finally:
         spark.stop()

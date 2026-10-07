@@ -120,6 +120,7 @@ def main() -> None:
             )
             .withColumn("content_hash", F.sha2(F.col("text_for_extraction"), 256))
             .withColumn("published_date", F.to_date(F.coalesce("published_timestamp", "collected_timestamp")))
+            .withColumn("published_year_month", F.date_format("published_date", "yyyy-MM"))
             .withColumn("rulebased_tickers", extract_tickers("text_for_extraction"))
             .withColumn(
                 "ner_tickers",
@@ -155,8 +156,8 @@ def main() -> None:
         ner_added = silver.filter(F.size(F.array_except("ner_tickers", "rulebased_tickers")) > 0).count()
         with_full_text = silver.filter("has_full_text").count()
         (
-            silver.repartition(args.output_partitions, "published_date").write.mode(args.mode)
-            .partitionBy("published_date")
+            silver.repartition(args.output_partitions, "published_year_month").write.mode(args.mode)
+            .partitionBy("published_year_month")
             .parquet(args.output)
         )
         print(

@@ -152,8 +152,8 @@ spark-submit news_system/spark_jobs/bronze_to_silver.py \
 ```
 
 Job thực hiện schema validation cơ bản, chuẩn hóa timestamp UTC, tạo
-`content_hash`, loại trùng `event_id` và ghi Parquet partition theo
-`published_date`.
+`content_hash`, loại trùng `event_id` và ghi Parquet partition theo tháng
+`published_year_month`.
 
 ## 6. Đồng bộ ADLS về local
 
@@ -235,7 +235,7 @@ ADLS layout:
 
 ```text
 bronze/market/ingest_date=YYYY-MM-DD/batch_*.jsonl.gz
-silver/market_daily/session_date=YYYY-MM-DD/*.parquet
+silver/market_daily/session_year_month=YYYY-MM/*.parquet
 ```
 
 Job Silver kiểm tra giá dương, quan hệ OHLC, volume không âm, phiên cuối

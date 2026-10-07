@@ -176,14 +176,15 @@ def main() -> None:
                 F.col("stock_cumulative_return") - F.col("benchmark_cumulative_return"),
             )
             .withColumn("gold_date", F.col("event_date_vn"))
+            .withColumn("gold_year_month", F.date_format("gold_date", "yyyy-MM"))
             .drop("benchmark_session_date", "benchmark_anchor_date")
             .cache()
         )
         total = gold.count()
         events_count = gold.select("event_id", "ticker").distinct().count()
         available = gold.filter("has_market_data").count()
-        gold.repartition(args.output_partitions, "gold_date").write.mode(args.mode).partitionBy(
-            "gold_date"
+        gold.repartition(args.output_partitions, "gold_year_month").write.mode(args.mode).partitionBy(
+            "gold_year_month"
         ).parquet(args.output)
         print(
             f"Gold rows={total} event_tickers={events_count} market_available={available} "

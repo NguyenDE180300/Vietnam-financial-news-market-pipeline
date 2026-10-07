@@ -77,7 +77,7 @@ Job `bronze_to_silver.py` thực hiện:
 3. Dedup theo `event_id`, ưu tiên bản có full text dài hơn.
 4. Chạy rule-based VN30 và CRF NER song song.
 5. Hợp nhất thành `merged_tickers` và chặn ticker ngoài VN30.
-6. Ghi Parquet theo `published_date`.
+6. Ghi Parquet theo tháng `published_year_month` để tránh tạo quá nhiều file nhỏ.
 
 ```bash
 spark-submit news_system/spark_jobs/bronze_to_silver.py \
@@ -155,9 +155,9 @@ Xem trước lệnh bằng `--dry-run`. Timer mẫu nằm trong `news_system/dep
 ```text
 bronze/news_stream/ingest_date=YYYY-MM-DD/hour=HH/*.jsonl.gz
 bronze/market/ingest_date=YYYY-MM-DD/*.jsonl.gz
-silver/news/published_date=YYYY-MM-DD/*.parquet
-silver/market_daily/session_date=YYYY-MM-DD/*.parquet
-gold/news_market_impact/gold_date=YYYY-MM-DD/*.parquet
+silver/news/published_year_month=YYYY-MM/*.parquet
+silver/market_daily/session_year_month=YYYY-MM/*.parquet
+gold/news_market_impact/gold_year_month=YYYY-MM/*.parquet
 ```
 
 Chỉ upload Silver/Gold sau khi validator tương ứng trả về `PASSED`. Khi rebuild
