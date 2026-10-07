@@ -1,0 +1,11 @@
+[Unit]
+Description=VN News Market Spark daily pipeline
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/vn-news-market-pipeline
+Environment=PYSPARK_PYTHON=/opt/miniconda3/envs/news-pipeline/bin/python
+Environment=PYSPARK_DRIVER_PYTHON=/opt/miniconda3/envs/news-pipeline/bin/python
+ExecStart=/opt/miniconda3/envs/news-pipeline/bin/python -m news_system.run_daily_pipeline

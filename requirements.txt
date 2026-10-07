@@ -1,0 +1,4 @@
+-r news_system/requirements-ui.txt
+-r news_system/requirements-kafka.txt
+-r news_system/requirements-spark.txt
+-r news_system/requirements-azure.txt

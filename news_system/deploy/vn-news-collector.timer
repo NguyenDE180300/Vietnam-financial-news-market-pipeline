@@ -1,0 +1,11 @@
+[Unit]
+Description=Collect Vietnam news every 15 minutes
+
+[Timer]
+OnCalendar=*:0/15
+Persistent=true
+RandomizedDelaySec=30
+Unit=vn-news-collector.service
+
+[Install]
+WantedBy=timers.target

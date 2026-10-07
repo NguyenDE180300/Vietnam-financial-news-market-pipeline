@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Environments and secrets
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+*.pem
+*.key
+*.pfx
+*.sas
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+
+# Runtime state and logs
+*.db
+*.sqlite
+*.sqlite3
+*.log
+*.pid
+collector_state*.db
+spark-warehouse/
+metastore_db/
+derby.log
+
+# Generated datasets, lake zones, checkpoints and trained models
+data/
+data_lake/
+models/*.joblib
+models/*.pkl
+checkpoints/
+
+# Unrelated local experiments/notebooks in the workspace root
+*.ipynb
+citibike_*.py
+collect_citibike.py
+download_himawari.py
+extract_himawari.py
+AGENTS.md

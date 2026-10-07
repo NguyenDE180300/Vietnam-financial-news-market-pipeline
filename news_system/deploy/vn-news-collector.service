@@ -1,0 +1,14 @@
+[Unit]
+Description=Vietnam news Bronze batch collector
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=azureuser
+WorkingDirectory=/opt/dsp301m
+EnvironmentFile=/etc/vn-news/collector.env
+ExecStart=/opt/miniconda3/envs/tf_linux/bin/python -m news_system.batch_collector --backend adls --state-db /var/lib/vn-news/collector_state.db --article-limit 0
+
+[Install]
+WantedBy=multi-user.target

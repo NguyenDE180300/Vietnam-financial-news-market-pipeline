@@ -1,0 +1,11 @@
+[Unit]
+Description=Run VN News Market Spark pipeline after market close
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 17:15:00 Asia/Ho_Chi_Minh
+Persistent=true
+RandomizedDelaySec=60
+Unit=vn-news-daily-pipeline.service
+
+[Install]
+WantedBy=timers.target
