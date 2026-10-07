@@ -24,7 +24,9 @@ def main() -> None:
 
     spark = (
         SparkSession.builder.appName("vn-news-market-gold")
-        .config("spark.sql.session.timeZone", "Asia/Ho_Chi_Minh")
+        # published_timestamp is an instant normalized in News Silver. Keep
+        # the Spark session in UTC, then convert exactly once below.
+        .config("spark.sql.session.timeZone", "UTC")
         .config("spark.sql.shuffle.partitions", str(max(8, args.output_partitions * 2)))
         .getOrCreate()
     )
