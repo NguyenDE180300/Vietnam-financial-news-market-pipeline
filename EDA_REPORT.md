@@ -9,41 +9,41 @@ local; dataset và notebook có output không được commit lên GitHub.
 
 | Dataset | Records | Coverage |
 |---|---:|---|
-| Silver News | 5.096 | 237 nhãn nguồn, 01/01/2020–06/10/2026 |
+| Silver News | 3.003 | 176 nhãn nguồn, 01/01/2020–06/10/2026 |
 | Silver Market | 52.142 | 30 ticker, 1.788 ngày giao dịch, 02/12/2019–07/10/2026 |
-| Gold Event Window | 29.952 | 3.328 cặp news–ticker × 9 offset |
+| Gold Event Window | 29.997 | 3.333 cặp news–ticker × 9 offset |
 
-So với batch EDA ban đầu, News tăng từ 260 lên 5.096, Market từ 660 lên
-52.142 và Gold từ 513 lên 29.952 dòng. Dữ liệu hiện đủ để audit pipeline,
+So với batch EDA ban đầu, News ticker-qualified tăng từ 47 lên 3.003, Market từ
+660 lên 52.142 và Gold từ 513 lên 29.997 dòng. Dữ liệu hiện đủ để audit pipeline,
 EDA mô tả và xây baseline nghiên cứu; chưa đủ sạch để xem kết quả là bằng chứng
 nhân quả hoặc đưa mô hình vào production.
 
 ## 2. News quality
 
-- 5.096/5.096 `event_id` duy nhất; không trùng URL, có 1 cặp trùng
+- 3.003/3.003 `event_id` duy nhất; không trùng URL, có 1 cặp trùng
   `content_hash` cần review.
 - Không có dòng invalid hoặc thiếu title.
-- 12 bài có full text, image và author (0,24%). Phần lịch sử chủ yếu là
+- 16 bài có full text, image và author (0,53%). Phần lịch sử chủ yếu là
   metadata/snippet, vì vậy chưa nên train NLP trên nội dung đầy đủ.
-- 3.001/5.096 bài có ít nhất một ticker VN30 (58,9%).
-- Có 237 nhãn nguồn do dữ liệu lịch sử mang tên publisher không chuẩn hóa hoàn
+- 3.003/3.003 bài có ít nhất một ticker VN30 (100%); Silver mặc định đã loại
+  bài không qua ticker gate.
+- Có 176 nhãn nguồn do dữ liệu lịch sử mang tên publisher không chuẩn hóa hoàn
   toàn; nên thêm bảng ánh xạ publisher canonical trước phân tích theo nguồn.
-- Chỉ 773 dòng có thể tính publish-to-collect latency. Median là 1.559 phút
-  (~26 giờ), P95 là 5.356 phút (~3,7 ngày); đây là backlog lịch sử, không đại
+- Chỉ 119 dòng có thể tính publish-to-collect latency. Median là 1.532 phút
+  (~25,5 giờ), P95 là 5.818 phút (~4 ngày); đây là backlog lịch sử, không đại
   diện latency realtime.
 
 ## 3. Ticker extraction
 
 | Nhóm | Số bài |
 |---|---:|
-| Không tìm thấy ticker | 2.095 |
-| Rule và NER đồng ý | 1.722 |
-| Rule-only | 1.226 |
-| Partial disagreement | 43 |
+| Rule và NER đồng ý | 1.721 |
+| Rule-only | 1.228 |
+| Partial disagreement | 44 |
 | NER-only | 10 |
 
 NER đã bổ sung ticker cho 10 bài mà rule-based không tìm thấy. Tuy nhiên, cần
-manual review toàn bộ 53 dòng NER-only/disagreement và lấy mẫu rule-only trước
+manual review toàn bộ 54 dòng NER-only/disagreement và lấy mẫu rule-only trước
 khi dùng làm nhãn huấn luyện. Chỉ có nhãn người thật mới cho phép báo cáo
 precision, recall và F1 đáng tin cậy.
 
@@ -63,7 +63,7 @@ precision, recall và F1 đáng tin cậy.
 Gold giữ Spark session ở UTC rồi chuyển `published_timestamp` sang
 `Asia/Ho_Chi_Minh` đúng một lần. Sau khi mở rộng market về trước thời điểm news:
 
-- 3.328 cặp news–ticker; 1.159 cặp đăng từ 15:00 trở đi.
+- 3.333 cặp news–ticker; 1.159 cặp đăng từ 15:00 trở đi.
 - 0 trường hợp T0 đứng trước event date.
 - 0 trường hợp anchor T−1 không đứng trước T0.
 - Tin từ năm 2020 không còn bị ghép nhầm với phiên đầu năm 2023.
@@ -72,13 +72,13 @@ Gold giữ Spark session ở UTC rồi chuyển `published_timestamp` sang
 
 | Offset | Available | Tỷ lệ |
 |---:|---:|---:|
-| T−5 | 3.304/3.328 | 99,3% |
-| T−3 đến T−1 | 3.305/3.328 | 99,3% |
-| T0 | 3.328/3.328 | 100% |
-| T+1 | 3.304/3.328 | 99,3% |
-| T+2 | 3.277/3.328 | 98,5% |
-| T+3 | 3.249/3.328 | 97,6% |
-| T+5 | 3.247/3.328 | 97,6% |
+| T−5 | 3.309/3.333 | 99,3% |
+| T−3 đến T−1 | 3.310/3.333 | 99,3% |
+| T0 | 3.333/3.333 | 100% |
+| T+1 | 3.309/3.333 | 99,3% |
+| T+2 | 3.282/3.333 | 98,5% |
+| T+3 | 3.254/3.333 | 97,6% |
+| T+5 | 3.252/3.333 | 97,6% |
 
 EDA thô cho mean abnormal return khoảng +0,09% tại T0, +0,17% tại T+1 và
 +0,31% tại T+5. Không nên diễn giải các số này là tác động của tin: nhiều bài
@@ -89,9 +89,9 @@ VN30 equal-weight benchmark chưa điều chỉnh beta hay yếu tố ngành.
 
 | Layer | Parquet files | Dung lượng local |
 |---|---:|---:|
-| Silver News | 75 | 4.106,5 KiB |
+| Silver News | 74 | 2.874,0 KiB |
 | Silver Market | 83 | 6.654,8 KiB |
-| Gold | 74 | 2.600,6 KiB |
+| Gold | 74 | 2.600,9 KiB |
 
 ## 8. Việc nên làm tiếp
 
