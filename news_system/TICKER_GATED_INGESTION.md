@@ -122,6 +122,9 @@ python -m news_system.sync_historical_lake \
   --ner-model models/ticker_ner_crf.joblib
 ```
 
+Trên máy local, systemd timer chạy lệnh đồng bộ này mỗi 15 phút. Không nên đặt
+ngắn hơn thời gian hoàn thành một lượt Spark để tránh hai lần rebuild chồng nhau.
+
 ## Chỉ số cần theo dõi
 
 - Số RSS candidates và tỷ lệ qua ticker gate.
