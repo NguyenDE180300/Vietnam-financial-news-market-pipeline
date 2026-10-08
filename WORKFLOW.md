@@ -70,6 +70,10 @@ spark-submit \
 
 ## 4. Bronze → Silver News
 
+Collector dùng ticker-gated enrichment trước khi ghi Bronze: phát hiện VN30 từ
+title/summary, crawl full article, rồi chạy lại Rule + NER trên toàn văn. Xem
+`news_system/TICKER_GATED_INGESTION.md` để vận hành queue và backfill lịch sử.
+
 Job `bronze_to_silver.py` thực hiện:
 
 1. Parse schema cố định và timestamp UTC.

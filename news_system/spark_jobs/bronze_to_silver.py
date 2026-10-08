@@ -24,6 +24,12 @@ NEWS_SCHEMA = T.StructType([
     T.StructField("content", T.StringType()),
     T.StructField("author", T.StringType()),
     T.StructField("image_url", T.StringType()),
+    T.StructField("rulebased_tickers", T.ArrayType(T.StringType())),
+    T.StructField("ner_tickers", T.ArrayType(T.StringType())),
+    T.StructField("merged_tickers", T.ArrayType(T.StringType())),
+    T.StructField("ticker_extraction_strategy", T.StringType()),
+    T.StructField("article_enrichment_status", T.StringType()),
+    T.StructField("content_length", T.IntegerType()),
     T.StructField("published_at_raw", T.StringType()),
     T.StructField("published_at_utc", T.StringType()),
     T.StructField("published_at_vn", T.StringType()),
@@ -59,6 +65,8 @@ def main() -> None:
     parser.add_argument("--output", required=True, help="Silver Parquet path")
     parser.add_argument("--mode", choices=("overwrite", "append"), default="overwrite")
     parser.add_argument("--ner-model", help="Optional local CRF model for parallel NER extraction")
+    parser.add_argument("--include-without-ticker", action="store_true",
+                        help="Keep non-VN30 news in Silver; default writes ticker news only")
     parser.add_argument(
         "--output-partitions",
         type=int,
@@ -155,8 +163,12 @@ def main() -> None:
         with_ticker = silver.filter(F.size("merged_tickers") > 0).count()
         ner_added = silver.filter(F.size(F.array_except("ner_tickers", "rulebased_tickers")) > 0).count()
         with_full_text = silver.filter("has_full_text").count()
+        output_frame = (
+            silver if args.include_without_ticker
+            else silver.filter(F.size("merged_tickers") > 0)
+        )
         (
-            silver.repartition(args.output_partitions, "published_year_month").write.mode(args.mode)
+            output_frame.repartition(args.output_partitions, "published_year_month").write.mode(args.mode)
             .partitionBy("published_year_month")
             .parquet(args.output)
         )

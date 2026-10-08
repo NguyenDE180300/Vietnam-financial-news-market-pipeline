@@ -7,6 +7,7 @@ import time
 from .database import NewsDatabase
 from .article_extractor import extract_article
 from .market_collector import download_daily
+from .news_ingestion import extract_item_tickers
 from .rss_collector import DEFAULT_FEEDS, collect_feed
 
 
@@ -22,6 +23,9 @@ def collect_news(database: NewsDatabase, feeds: dict[str, str] = DEFAULT_FEEDS,
             print(f"[WARN] {source}: {error}")
             continue
         for item in items:
+            # Gate on RSS title + summary before spending a page request.
+            if only_with_ticker and not extract_item_tickers(item, hybrid_extractor):
+                continue
             should_fetch_article = (full_text and item.url and
                                     (article_limit <= 0 or fetched_articles < article_limit))
             if should_fetch_article:

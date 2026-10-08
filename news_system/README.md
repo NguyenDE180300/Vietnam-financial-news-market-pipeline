@@ -6,6 +6,11 @@ Pipeline batch mới có thể ghi RSS/full article vào Bronze local hoặc ADL
 sau đó dùng Spark local tạo Silver Parquet. Hướng dẫn triển khai đầy đủ ở
 [HYBRID_AZURE_SETUP.md](HYBRID_AZURE_SETUP.md).
 
+Collector mặc định gate bằng ticker VN30 trước khi crawl, chỉ phát hành bài có
+full content thành công và chạy lại Rule + NER trên toàn văn. Thiết kế queue,
+retry và backfill nằm trong
+[TICKER_GATED_INGESTION.md](TICKER_GATED_INGESTION.md).
+
 Thử Bronze local:
 
 ```bash
@@ -54,12 +59,14 @@ Resolve Google News URL và crawl historical full article theo batch:
 python -m news_system.crawl_full_articles \
   --db news_system.db \
   --limit 20 \
-  --delay 1
+  --delay 1.5 \
+  --max-attempts 5 \
+  --ner-model models/ticker_ner_crf.joblib
 ```
 
-Script lưu `resolved_url`, `extraction_status`, `extraction_method`,
-`content_length` và `extraction_error`; có thể chạy nhiều batch, chỉ xử lý bài
-chưa thành công.
+Script chỉ chọn bài đã có ticker VN30; lưu `resolved_url`, `extraction_status`,
+`content_length`, lỗi và số lần thử. Sau khi lấy toàn văn, ticker được chạy lại
+bằng Rule + NER.
 
 Thu thập news:
 

@@ -5,9 +5,11 @@ import argparse
 import json
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 
 from .article_extractor import extract_article
 from .batch_collector import CollectorState, bronze_record, news_event_id
+from .news_ingestion import prepare_ticker_articles
 from .rss_collector import DEFAULT_FEEDS, collect_feed
 
 
@@ -29,6 +31,8 @@ def publish_once(
     state: CollectorState,
     full_text: bool = True,
     article_limit: int = 0,
+    hybrid_extractor=None,
+    article_fetcher=extract_article,
 ) -> int:
     try:
         from confluent_kafka import Producer
@@ -40,25 +44,22 @@ def publish_once(
         print("No new articles.", flush=True)
         return 0
 
-    fetched = 0
-    if full_text:
-        for item in items:
-            if article_limit > 0 and fetched >= article_limit:
-                break
-            if not item.url:
-                continue
-            try:
-                article = extract_article(item.url)
-                if article.title:
-                    item.title = article.title
-                if article.content:
-                    item.content = article.content
-                item.author = article.author
-                item.image_url = article.image_url or item.image_url
-                fetched += 1
-                time.sleep(0.5)
-            except Exception as error:
-                print(f"[WARN] article {item.url}: {error}", flush=True)
+    prepared = prepare_ticker_articles(
+        items, full_text=full_text, article_limit=article_limit,
+        fetch_article=article_fetcher, hybrid_extractor=hybrid_extractor,
+        can_attempt=state.can_attempt_article,
+        record_attempt=state.record_article_attempt,
+        request_delay=0.5,
+    )
+    state.mark_filtered(prepared.rejected, "no_vn30_ticker")
+    items = prepared.ready
+    if not items:
+        print(
+            f"No publishable articles: rejected={len(prepared.rejected)} "
+            f"deferred={len(prepared.deferred)} failed={len(prepared.failed)}",
+            flush=True,
+        )
+        return 0
 
     producer = Producer({
         "bootstrap.servers": bootstrap_servers,
@@ -98,7 +99,9 @@ def publish_once(
     if failed:
         raise RuntimeError("Kafka delivery failed: " + "; ".join(failed[:5]))
     print(
-        f"Kafka publish: topic={topic} records={len(delivered_items)} full_text={fetched}",
+        f"Kafka publish: topic={topic} records={len(delivered_items)} "
+        f"enriched={len(items) if full_text else 0} rejected={len(prepared.rejected)} "
+        f"deferred={len(prepared.deferred)} failed={len(prepared.failed)}",
         flush=True,
     )
     return len(delivered_items)
@@ -111,17 +114,27 @@ def main() -> None:
     parser.add_argument("--state-db", default="data/kafka_producer_state.db")
     parser.add_argument("--article-limit", type=int, default=0)
     parser.add_argument("--no-full-text", action="store_true")
+    parser.add_argument("--ner-model", default="models/ticker_ner_crf.joblib")
     parser.add_argument("--watch", action="store_true")
     parser.add_argument("--interval-minutes", type=int, default=15)
     args = parser.parse_args()
     if args.interval_minutes < 1:
         parser.error("--interval-minutes must be at least 1")
     state = CollectorState(args.state_db)
+    hybrid_extractor = None
+    if args.ner_model:
+        model_path = Path(args.ner_model)
+        if model_path.is_file():
+            from .hybrid_ticker_extractor import HybridTickerExtractor
+            hybrid_extractor = HybridTickerExtractor(model_path)
+        else:
+            print(f"[WARN] NER model not found; using rule-based gate: {model_path}", flush=True)
     while True:
         publish_once(
             args.bootstrap_servers, args.topic, state,
             full_text=not args.no_full_text,
             article_limit=max(0, args.article_limit),
+            hybrid_extractor=hybrid_extractor,
         )
         if not args.watch:
             break

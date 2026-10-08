@@ -14,8 +14,10 @@ from news_system.ticker_extractor import TickerExtractor
 from news_system.ner_ticker import spans_to_bio, tokenize_with_offsets
 from news_system.news_market_impact import _known_anchor_index, _t0_index
 from news_system.article_extractor import _decode_response_body
-from news_system.batch_collector import bronze_record
+from news_system.article_extractor import ArticleContent
+from news_system.batch_collector import CollectorState, bronze_record
 from news_system.lake_storage import LocalLakeStorage
+from news_system.news_ingestion import prepare_ticker_articles
 
 
 class NewsMVPTests(unittest.TestCase):
@@ -94,6 +96,38 @@ class NewsMVPTests(unittest.TestCase):
                 (json.dumps(record) + "\n").encode(),
             )
             self.assertTrue(Path(target).is_file())
+
+    def test_ticker_gate_crawls_only_vn30_and_defers_over_limit(self):
+        items = [
+            NewsItem(title="FPT công bố hợp đồng", summary="Tin doanh nghiệp", url="https://example/fpt"),
+            NewsItem(title="Du lịch Việt Nam tăng trưởng", summary="Không có mã", url="https://example/travel"),
+            NewsItem(title="HPG mở rộng nhà máy", summary="Tin thép", url="https://example/hpg"),
+        ]
+        requested = []
+
+        def fetch(url):
+            requested.append(url)
+            return ArticleContent(content=("Nội dung chi tiết bài báo về FPT. " * 12))
+
+        result = prepare_ticker_articles(
+            items, full_text=True, article_limit=1, fetch_article=fetch,
+        )
+        self.assertEqual(requested, ["https://example/fpt"])
+        self.assertEqual([item.tickers for item in result.ready], [["FPT"]])
+        self.assertEqual([item.url for item in result.rejected], ["https://example/travel"])
+        self.assertEqual([item.url for item in result.deferred], ["https://example/hpg"])
+        self.assertEqual(result.failed, [])
+
+    def test_failed_article_is_not_marked_emitted_and_has_retry_cap(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = CollectorState(Path(directory) / "state.db")
+            item = NewsItem(title="FPT có tin mới", url="https://example/fpt")
+            state.record_article_attempt(item, True, None)
+            self.assertTrue(state.can_attempt_article(item))
+            for _ in range(4):
+                state.record_article_attempt(item, False, "temporary failure")
+            self.assertFalse(state.can_attempt_article(item))
+            self.assertEqual(state.unseen([item]), [item])
 
 
 if __name__ == "__main__":

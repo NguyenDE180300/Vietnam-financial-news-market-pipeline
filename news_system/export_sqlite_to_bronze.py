@@ -35,8 +35,10 @@ def export_sqlite(
     if batch_size < 1:
         raise ValueError("batch_size must be at least 1")
     query = """SELECT id,title,summary,source,url,published_at,event_time,
-                      published_precision,created_at,observed_at,content,author,image_url
-               FROM news_items ORDER BY id"""
+                      published_precision,created_at,observed_at,content,author,image_url,
+                      tickers_json,rulebased_tickers_json,ner_tickers_json,
+                      ticker_extraction_strategy
+               FROM news_items WHERE tickers_json != '[]' ORDER BY id"""
     exported = shards = 0
     with sqlite3.connect(db_path) as connection:
         cursor = connection.execute(query)
@@ -47,13 +49,18 @@ def export_sqlite(
             records = []
             for row in rows:
                 (news_id, title, summary, source, url, published_at, event_time,
-                 precision, created_at, observed_at, content, author, image_url) = row
+                 precision, created_at, observed_at, content, author, image_url,
+                 tickers_json, rule_json, ner_json, strategy) = row
                 item = NewsItem(
                     title=title or "", summary=summary or "", source=source or "",
                     url=url or "", published_at=event_time or published_at,
                     event_time=event_time or published_at,
                     published_precision=precision or "unknown", content=content or "",
                     author=author, image_url=image_url,
+                    tickers=json.loads(tickers_json or "[]"),
+                    rulebased_tickers=json.loads(rule_json or "[]"),
+                    ner_tickers=json.loads(ner_json or "[]"),
+                    ticker_extraction_strategy=strategy or "rulebased",
                 )
                 record = bronze_record(item, _aware_time(created_at, observed_at))
                 record["event_type"] = "news.historical.exported"
