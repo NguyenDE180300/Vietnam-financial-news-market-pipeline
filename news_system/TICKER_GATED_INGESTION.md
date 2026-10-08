@@ -79,17 +79,21 @@ lại Rule + NER sau khi tải nội dung:
 ```bash
 python -m news_system.crawl_full_articles \
   --db news_system.db \
-  --limit 200 \
+  --limit 100 \
   --workers 6 \
   --delay 0.75 \
+  --google-resolve-delay 3 \
+  --rate-limit-backoff 120 \
   --max-attempts 5 \
   --ner-model models/ticker_ner_crf.joblib \
-  --watch --interval-minutes 2
+  --watch --interval-minutes 5
 ```
 
 `--delay` giãn thời điểm bắt đầu request kể cả khi chạy song song, tránh tạo
-burst vào một website. Không giảm delay nếu chưa kiểm tra điều khoản và phản
-hồi của từng nguồn. Sau khi crawl đủ, export lại Bronze:
+burst vào một website. Riêng Google News URL được resolve tuần tự, cách nhau ít
+nhất 3 giây. Lỗi HTTP 429 kích hoạt cooldown 120 giây, tăng gấp đôi tối đa 15
+phút và không tiêu hao giới hạn 5 lần thử của bài. Không giảm delay nếu chưa
+kiểm tra điều khoản và phản hồi của từng nguồn. Sau khi crawl đủ, export lại Bronze:
 
 ```bash
 python -m news_system.export_sqlite_to_bronze \

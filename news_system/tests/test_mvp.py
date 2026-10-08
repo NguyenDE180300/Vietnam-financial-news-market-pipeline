@@ -18,9 +18,14 @@ from news_system.article_extractor import ArticleContent
 from news_system.batch_collector import CollectorState, bronze_record
 from news_system.lake_storage import LocalLakeStorage
 from news_system.news_ingestion import prepare_ticker_articles
+from news_system.crawl_full_articles import _is_rate_limited
 
 
 class NewsMVPTests(unittest.TestCase):
+    def test_google_rate_limit_detection(self):
+        self.assertTrue(_is_rate_limited("429 Client Error: Too Many Requests"))
+        self.assertFalse(_is_rate_limited("content too short"))
+
     def test_ticker_alias_and_prefix(self):
         extractor = TickerExtractor()
         self.assertEqual(extractor.extract("HPG/VCB: Hòa Phát và Vietcombank tăng"), ["HPG", "VCB"])
