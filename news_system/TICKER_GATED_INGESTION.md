@@ -79,15 +79,17 @@ lại Rule + NER sau khi tải nội dung:
 ```bash
 python -m news_system.crawl_full_articles \
   --db news_system.db \
-  --limit 20 \
-  --delay 1.5 \
+  --limit 200 \
+  --workers 6 \
+  --delay 0.75 \
   --max-attempts 5 \
   --ner-model models/ticker_ner_crf.joblib \
-  --watch --interval-minutes 15
+  --watch --interval-minutes 2
 ```
 
-Nên chạy batch nhỏ, kiểm tra điều khoản của từng nguồn và không giảm delay để
-tránh gây tải cho website. Sau khi crawl đủ, export lại Bronze:
+`--delay` giãn thời điểm bắt đầu request kể cả khi chạy song song, tránh tạo
+burst vào một website. Không giảm delay nếu chưa kiểm tra điều khoản và phản
+hồi của từng nguồn. Sau khi crawl đủ, export lại Bronze:
 
 ```bash
 python -m news_system.export_sqlite_to_bronze \
