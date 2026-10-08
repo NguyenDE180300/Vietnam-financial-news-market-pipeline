@@ -112,6 +112,14 @@ spark-submit news_system/spark_jobs/bronze_to_silver.py \
 Silver mặc định loại bài không có ticker VN30. Chỉ dùng
 `--include-without-ticker` khi cần tạo tập negative riêng cho nghiên cứu NER.
 
+Đồng bộ trọn gói SQLite đã enrich sang Bronze, Silver và Gold local:
+
+```bash
+python -m news_system.sync_historical_lake \
+  --db news_system.db --root data_lake \
+  --ner-model models/ticker_ner_crf.joblib
+```
+
 ## Chỉ số cần theo dõi
 
 - Số RSS candidates và tỷ lệ qua ticker gate.
