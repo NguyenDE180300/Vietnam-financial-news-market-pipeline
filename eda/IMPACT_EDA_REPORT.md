@@ -6,12 +6,12 @@ Ngày chạy: 08/10/2026. Dataset: `data_lake/gold/news_market_impact`.
 
 | Chỉ số | Giá trị |
 |---|---:|
-| Gold rows | 29.997 |
-| News events | 3.003 |
-| Event–ticker pairs | 3.333 |
+| Gold rows | 39.789 |
+| News events | 3.033 |
+| Event–ticker pairs | 4.421 |
 | Ticker | 30 |
 | Window key trùng | 0 |
-| Tin sau 15:00 | 1.159 |
+| Tin sau 15:00 | 1.543 |
 | T0 sai thời gian | 0 |
 | Anchor T−1 sai | 0 |
 
@@ -19,26 +19,25 @@ Ngày chạy: 08/10/2026. Dataset: `data_lake/gold/news_market_impact`.
 
 | Offset | Available | Tỷ lệ |
 |---:|---:|---:|
-| T−5 | 3.309/3.333 | 99,28% |
-| T−3 đến T−1 | 3.310/3.333 | 99,31% |
-| T0 | 3.333/3.333 | 100% |
-| T+1 | 3.309/3.333 | 99,28% |
-| T+2 | 3.282/3.333 | 98,47% |
-| T+3 | 3.254/3.333 | 97,63% |
-| T+5 | 3.252/3.333 | 97,57% |
+| T−5 | 4.397/4.421 | 99,46% |
+| T−3 đến T−1 | 4.398/4.421 | 99,48% |
+| T0 | 4.421/4.421 | 100% |
+| T+1 | 4.397/4.421 | 99,46% |
+| T+2 | 4.370/4.421 | 98,85% |
+| T+3 | 4.342/4.421 | 98,21% |
+| T+5 | 4.340/4.421 | 98,17% |
 
 ## Abnormal return mô tả
 
-Mean cumulative abnormal return là khoảng +0,089% tại T0, +0,168% tại T+1,
-+0,106% tại T+3 và +0,304% tại T+5. Median tại T+5 lại là −0,160%, cho thấy
+Mean cumulative abnormal return là khoảng +0,040% tại T0, +0,085% tại T+1,
++0,020% tại T+3 và +0,154% tại T+5. Median tại T+5 lại là −0,210%, cho thấy
 phân phối lệch và mean có thể bị một nhóm return lớn kéo lên.
 
-Tin trước 15:00 có mean T+5 khoảng +0,285%; tin sau 15:00 khoảng +0,340%.
+Tin trước 15:00 có mean T+5 khoảng +0,160%; tin sau 15:00 khoảng +0,143%.
 Đây chỉ là mô tả, chưa phải bằng chứng tin sau giờ đóng cửa tạo tác động lớn hơn.
 
-Kết quả theo ticker rất mất cân bằng: FPT có 1.448 quan sát T+5, ACB có 930,
-trong khi nhiều mã chỉ có 20–60. Mean theo ticker vì thế không thể so sánh trực
-tiếp nếu chưa cân bằng mẫu và gom các bài cùng sự kiện.
+Kết quả theo ticker vẫn mất cân bằng mạnh, nên mean theo ticker không thể so
+sánh trực tiếp nếu chưa cân bằng mẫu và gom các bài cùng sự kiện.
 
 ## Kết luận Impact
 
