@@ -42,9 +42,10 @@ checkpoints/
 
 # Unrelated local experiments/notebooks in the workspace root
 *.ipynb
-!NEWS_MARKET_EDA.ipynb
+!eda/*.ipynb
 *.executed.ipynb
 NEWS_MARKET_EDA.html
+eda/*.html
 citibike_*.py
 collect_citibike.py
 download_himawari.py
