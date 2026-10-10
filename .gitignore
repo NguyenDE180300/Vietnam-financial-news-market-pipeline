@@ -44,6 +44,7 @@ checkpoints/
 *.ipynb
 !eda/*.ipynb
 *.executed.ipynb
+!eda/*.executed.ipynb
 NEWS_MARKET_EDA.html
 eda/*.html
 citibike_*.py
