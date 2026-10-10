@@ -1,6 +1,6 @@
 # Market Silver EDA
 
-Ngày chạy: 08/10/2026. Dataset: `data_lake/silver/market_daily`.
+Ngày chạy: 10/10/2026. Dataset: `data_lake/silver/market_daily`.
 
 ## Quy mô và chất lượng
 
