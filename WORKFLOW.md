@@ -1,6 +1,6 @@
 # Tổng quan hệ thống Vietnam Financial News–Market Pipeline
 
-## 1. Mục tiêu và trạng thái
+## 1. Mục tiêu và phạm vi triển khai
 
 Hệ thống thu thập tin tài chính Việt Nam, nhận diện mã cổ phiếu VN30, lấy giá
 theo phiên và tạo dataset đo biến động thị trường quanh thời điểm đăng tin.
@@ -10,20 +10,23 @@ Kiến trúc hỗ trợ hai luồng:
 - **Realtime/near-realtime:** đọc RSS định kỳ, truyền event qua Kafka và dùng
   Spark Structured Streaming ghi Bronze.
 
-| Hạng mục | Trạng thái hiện tại |
+Tài liệu này mô tả **workflow triển khai hoàn chỉnh dùng để thuyết trình và
+vận hành hệ thống**. Trong kiến trúc này, local chịu trách nhiệm thu thập/xử lý,
+còn ADLS Gen2 là nơi lưu trữ chính thức sau quality gate.
+
+| Hạng mục | Vai trò trong workflow |
 |---|---|
 | Historical news, full article, ticker extraction | Đã triển khai, có dữ liệu |
 | Bronze/Silver News và Market | Đã triển khai bằng Spark local |
 | Gold News–Market point-in-time join | Đã triển khai và có quality gate |
-| Kafka producer/broker và Spark Kafka consumer | Đã có code; hiện đang dừng |
-| ADLS Gen2 | Đã kết nối, chưa tự động sync từ local |
-| Azure VM | Deallocated; không đủ RAM chạy cả Kafka và Spark |
+| Kafka producer/broker và Spark Kafka consumer | Streaming ingestion cho tin mới |
+| ADLS Gen2 | Data Lake chính thức; nhận dữ liệu tự động sau validation |
+| Azure VM | Collector nhẹ; Spark/Kafka ưu tiên chạy trên máy local mạnh |
 | EDA | Có source, notebook đã chạy và report |
 | Mô hình dự đoán tăng/giảm | Chưa triển khai; Gold là dataset đầu vào |
 
-Tại thời điểm cập nhật tài liệu, crawler, timer đồng bộ, Kafka và Spark đều đã
-được dừng theo yêu cầu. Dữ liệu local và ADLS không bị xóa. Đây là hệ thống
-nghiên cứu, không phải công cụ khuyến nghị đầu tư.
+Các service có thể được bật/tắt độc lập mà không làm mất dữ liệu. Đây là hệ
+thống nghiên cứu, không phải công cụ khuyến nghị đầu tư.
 
 ## 2. Kiến trúc tổng thể
 
@@ -47,6 +50,10 @@ Bronze News ─► Spark clean/dedup/validate ─► Silver News ───┐
 Yahoo Finance ─► Bronze Market ─► Spark ─► Silver Market ───┤
                                                             ▼
                                     Gold News–Market point-in-time join
+                                                            │
+                                               Quality gates PASSED
+                                                            │
+                                           automatic versioned ADLS publish
                                                             │
                                                    EDA / dashboard / ML
 ```
@@ -201,8 +208,8 @@ spark-submit \
   --checkpoint data_lake/checkpoints/news_kafka_to_bronze
 ```
 
-Checkpoint giữ offset đã hoàn tất. Producer và consumer hiện chưa được đóng gói
-thành service chạy liên tục.
+Checkpoint giữ offset đã hoàn tất. Khi triển khai liên tục, producer và consumer
+được quản lý bởi service/timer để tự khởi động lại sau lỗi.
 
 ## 7. Lưu trữ local và Azure
 
@@ -227,12 +234,39 @@ Azure hiện có:
   deallocated.
 
 VM đủ cho collector nhỏ nhưng không phù hợp chạy đồng thời Kafka, Spark và UI.
-Hướng hợp lý là compute nặng ở local, ADLS lưu lake. Pipeline hiện **chưa tự
-upload Silver/Gold lên ADLS** và chưa dùng Azure SQL/PostgreSQL. Khi publish
-overwrite phải thay cả output prefix; chép thêm Parquet UUID vào prefix cũ có
-thể nhân đôi dữ liệu.
+Vì vậy compute nặng chạy ở local, còn ADLS là nơi lưu lake tập trung. Sau khi
+các validator trả về `PASSED`, bước publish tự động thực hiện:
 
-## 8. Vận hành batch local
+```text
+Local Silver/Gold
+        │
+        ▼
+ADLS staging/run_id=<UTC timestamp>
+        │
+        ├── kiểm tra upload, schema, số file và manifest
+        ├── FAILED: giữ bản current cũ, ghi log/quarantine
+        └── PASSED: cập nhật manifest/current sang run_id mới
+```
+
+Layout logic trên ADLS:
+
+```text
+abfss://silver@stcitibikedata.dfs.core.windows.net/
+├── news/runs/run_id=.../
+├── market_daily/runs/run_id=.../
+└── manifests/current.json
+
+abfss://gold@stcitibikedata.dfs.core.windows.net/
+├── news_market_impact/runs/run_id=.../
+└── manifests/current.json
+```
+
+Cơ chế versioned publish tránh việc chép Parquet UUID mới lẫn với file cũ gây
+nhân đôi dữ liệu. Consumer chỉ đọc version được trỏ bởi `current.json`; nếu
+upload lỗi thì phiên bản đang hoạt động không thay đổi. SQLite vẫn nằm trên máy
+collector và không cần Azure SQL/PostgreSQL.
+
+## 8. Vận hành batch và tự động publish ADLS
 
 Đồng bộ SQLite historical → Bronze → Silver News → Gold (không refresh Market):
 
@@ -248,7 +282,26 @@ Refresh Market rồi rebuild cả hai Silver và Gold:
 python -m news_system.run_daily_pipeline --root data_lake --period 1mo
 ```
 
-Dùng `--dry-run` để xem chuỗi lệnh. Dừng Kafka:
+Workflow orchestration hoàn chỉnh:
+
+```text
+1. Collect News/Market
+2. Write Bronze
+3. Build Silver News và Silver Market
+4. Validate Silver
+5. Build Gold News–Market
+6. Validate Gold
+7. Tạo run_id và upload Silver/Gold vào ADLS staging
+8. Verify manifest, schema, file count/checksum
+9. Atomically chuyển current sang run_id mới
+10. Ghi audit log và gửi cảnh báo nếu thất bại
+```
+
+Timer chạy batch gọi một entrypoint duy nhất; chỉ bước 9 xảy ra khi toàn bộ
+quality gate và upload verification thành công. Vì vậy EDA/dashboard luôn đọc
+phiên bản lake hoàn chỉnh gần nhất, không đọc batch đang upload dở.
+
+Dùng `--dry-run` để xem chuỗi xử lý. Dừng Kafka:
 
 ```bash
 docker compose -f news_system/deploy/kafka/compose.yaml down
@@ -297,17 +350,15 @@ spark-submit news_system/spark_jobs/validate_news_market_gold.py \
   --input data_lake/gold/news_market_impact
 ```
 
-## 11. Phần chưa hoàn thiện
+## 11. Hướng phát triển tiếp theo
 
-1. Tự động publish local lake lên ADLS sau quality gate.
-2. Kafka producer/Spark consumer chạy dạng service có restart và monitoring.
-3. Market refresh theo lịch riêng và cảnh báo freshness.
-4. Đánh giá NER trên human-gold test set độc lập, theo từng nguồn.
-5. Parser riêng cho nguồn extraction kém và theo dõi DOM drift.
-6. Sentiment/event classification và mô hình dự đoán impact.
-7. Feature kỹ thuật mở rộng trong Market Silver.
-8. Monitoring throughput, latency, freshness và dead-letter/quarantine.
-9. Ảnh/video và mạng xã hội chưa nằm trong pipeline.
+1. Hoàn thiện monitoring tập trung cho Kafka/Spark và cảnh báo freshness.
+2. Đánh giá NER trên human-gold test set độc lập, theo từng nguồn.
+3. Parser riêng cho nguồn extraction kém và theo dõi DOM drift.
+4. Sentiment/event classification và mô hình dự đoán impact.
+5. Feature kỹ thuật mở rộng trong Market Silver.
+6. Data catalog, lineage và retention policy cho các version cũ trên ADLS.
+7. Ảnh/video và mạng xã hội trong giai đoạn nghiên cứu sau.
 
 ## 12. Tài liệu chi tiết
 
