@@ -24,7 +24,8 @@ Không article nào bị cắt theo số chunk.
 
 ## Multi-task attention model
 
-Best checkpoint là epoch 1; early stopping sau epoch 5. Mean validation macro-F1 tốt nhất là 0.5049.
+Early stopping dừng run sau epoch 5 dựa trên validation Macro-F1. Train loss
+giảm nhưng validation dao động, cho thấy khả năng overfitting trên tập train.
 
 ### Test
 

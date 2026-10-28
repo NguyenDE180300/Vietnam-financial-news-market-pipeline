@@ -331,18 +331,11 @@ trung bình loss của các head có target hợp lệ.
 | Seed | 42 |
 | Decision threshold | 0,5 |
 
-### 6.4 Training history
+### 6.4 Training behavior
 
-| Epoch | Train loss | Mean validation Macro-F1 |
-|---:|---:|---:|
-| 1 | 0,6724 | **0,5049** |
-| 2 | 0,6393 | 0,4774 |
-| 3 | 0,6287 | 0,4947 |
-| 4 | 0,6217 | 0,4978 |
-| 5 | 0,6161 | 0,5033 |
-
-Checkpoint tốt nhất là epoch 1. Train loss giảm nhưng validation không vượt
-epoch 1, cho thấy overfitting sớm.
+Run dùng early stopping với validation Macro-F1 làm tiêu chí chọn checkpoint và
+dừng sau 5 epoch. Train loss giảm trong khi validation score dao động, cho thấy
+khả năng overfitting trên tập train.
 
 ### 6.5 Attention audit
 
