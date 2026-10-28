@@ -36,6 +36,10 @@ three-class label contract không được dùng trong binary experiment này.
 Metric chính là Macro-F1. Báo cáo và diễn giải đầy đủ nằm tại
 `news_system/FULLTEXT_MODEL_EVALUATION_REPORT.md`.
 
+Permutation importance theo PhoBERT embedding, market và history groups nằm tại
+`FEATURE_IMPORTANCE_REPORT.md`; dữ liệu đầy đủ cho 30 lần permutation trên mỗi
+feature nằm trong `feature_importance_permutation.json`.
+
 ## Summary
 
 | Setting | Feature set | T+1 Macro-F1 | T+3 Macro-F1 | T+5 Macro-F1 | Mean |

@@ -1,4 +1,4 @@
-# Báo cáo tổng hợp hệ thống dự đoán tác động News–Market
+1# Báo cáo tổng hợp hệ thống dự đoán tác động News–Market
 
 **Project:** Vietnam Financial News–Market Pipeline
 
@@ -579,6 +579,59 @@ T+5 Macro-F1 0,5976 là tín hiệu nghiên cứu, không phải bằng chứng 
 Report chưa xét transaction cost, slippage, portfolio construction, turnover,
 risk-adjusted return và statistical significance qua nhiều regimes.
 
+### 12.8 Permutation feature importance
+
+Importance được tính bằng cách **tráo giá trị của một feature giữa các mẫu ở
+validation/test**, sau đó chạy lại dự đoán bằng model đã train và đo Macro-F1.
+Ví dụ, một feature có giá trị `[0,01; -0,02; 0,005]` có thể thành
+`[0,005; 0,01; -0,02]`. Cột vẫn còn và phân phối giá trị vẫn tương tự, nhưng
+giá trị không còn gắn với đúng bài báo/ticker ban đầu.
+
+Đây không phải xóa cột rồi train lại. Model và các trọng số được giữ nguyên;
+chỉ dữ liệu của feature bị tráo trong bước đánh giá. Mỗi feature được tráo 30
+lần để giảm phụ thuộc vào một hoán vị ngẫu nhiên. Điểm được định nghĩa:
+
+```text
+importance = baseline Macro-F1 - mean Macro-F1 sau khi tráo feature
+```
+
+Điểm dương lớn nghĩa là model hiện tại cần thông tin đó để giữ hiệu quả trên
+split đang xét. Điểm gần 0 nghĩa là dự đoán ít đổi. Điểm âm nghĩa là khi tráo
+feature, điểm lại tăng; feature có thể gây nhiễu hoặc model có thể overfit vào
+nó trong split này. Điểm này đo phụ thuộc của model, không chứng minh quan hệ
+nhân quả.
+
+PhoBERT article/history là vector 768 chiều nên mỗi vector được tráo nguyên
+khối và có một điểm importance cho cả nhóm. Mỗi market/history scalar được
+tráo riêng, cho một điểm riêng. Các tọa độ PhoBERT không được diễn giải riêng
+vì chúng không tương ứng trực tiếp với biến có tên dễ hiểu.
+
+Ví dụ trên expanded test của `Fulltext + market + history`, tại T+5:
+
+| Feature | Macro-F1 giảm sau permutation |
+|---|---:|
+| History embedding (768D, tráo như một nhóm) | 0,0784 |
+| Current article embedding (768D, tráo như một nhóm) | 0,0632 |
+| Market momentum 5 phiên | 0,0147 |
+| History availability | 0,0135 |
+| Market momentum 20 phiên | 0,0130 |
+| Market return 1 phiên | 0,0116 |
+
+Ví dụ `0,0784` nghĩa là Macro-F1 gốc 0,5976 giảm trung bình khoảng 0,0784
+khi history embedding bị tráo; đây không phải tỷ lệ phần trăm accuracy hay
+mức tác động nhân quả. Ở expanded T+1 của model `Fulltext + market`,
+`market_return_1d` có importance 0,0237, cao nhất trong các feature của model
+đó. Importance thay đổi theo horizon và temporal split; expanded T+1 khi có
+history thậm chí cho điểm âm với text embeddings. Chi tiết validation/test,
+độ lệch qua 30 lần và mọi feature nằm trong
+`results/fulltext_model/FEATURE_IMPORTANCE_REPORT.md` và
+`results/fulltext_model/feature_importance_permutation.json`.
+
+Permutation làm vỡ tương quan tự nhiên giữa các feature; các feature tương quan
+có thể chia sẻ hoặc che lấp importance. Những điểm nhỏ hơn độ lệch giữa các
+lần tráo chưa phải bằng chứng đóng góp ổn định. Cần xác nhận trên nhiều
+walk-forward folds và bootstrap theo event/ticker-date.
+
 ---
 
 ## 13. Hạn chế và rủi ro
@@ -652,6 +705,9 @@ cuối phủ đủ 30 mã VN30, 2.948 articles và 5.068 event–ticker pairs.
 | Hierarchical training | `news_system/train_hierarchical_phobert.py` |
 | Spark ablation training | `news_system/spark_jobs/train_movement_baseline.py` |
 | History builder | `news_system/build_fulltext_history_embeddings.py` |
+| Permutation importance report | `results/fulltext_model/FEATURE_IMPORTANCE_REPORT.md` |
+| Permutation importance detail | `results/fulltext_model/feature_importance_permutation.json` |
+| Permutation importance script | `news_system/spark_jobs/feature_importance_permutation.py` |
 
 Dataset, raw article, ảnh, database và cache không nên public nếu chưa kiểm tra
 bản quyền, quyền riêng tư và điều khoản nguồn. Model release chỉ nên chứa
